@@ -1,13 +1,13 @@
 {
   "name": "heyclaude",
   "private": true,
-  "packageManager": "pnpm@10.33.2",
+  "packageManager": "pnpm@11.0.9",
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "8.5.0",
     "@heyclaude/registry": "workspace:*",
     "gray-matter": "4.0.3",
-    "yaml": "2.8.3",
-    "zod": "4.3.6"
+    "yaml": "2.8.4",
+    "zod": "4.4.3"
   },
   "scripts": {
     "dev": "pnpm --filter web dev",
@@ -35,6 +35,7 @@
     "mcp:start": "pnpm --filter @heyclaude/mcp start",
     "validate:mcp-endpoint": "pnpm --filter @heyclaude/mcp validate:endpoint",
     "test:mcp": "vitest run tests/mcp-server.test.ts",
+    "submission:risk": "node scripts/analyze-submission-risk.mjs",
     "submission:queue": "node scripts/build-submission-queue.mjs",
     "submission:stale": "node scripts/manage-stale-submissions.mjs",
     "test": "vitest run",
@@ -60,21 +61,15 @@
     "prepare": "husky"
   },
   "devDependencies": {
-    "@commitlint/cli": "20.5.2",
-    "@commitlint/config-conventional": "20.5.0",
+    "@commitlint/cli": "21.0.0",
+    "@commitlint/config-conventional": "21.0.0",
     "@playwright/test": "1.59.1",
     "husky": "9.1.7",
     "prettier": "3.8.3",
-    "react": "19.2.5",
-    "react-dom": "19.2.5",
-    "react-email": "6.0.5",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "react-email": "6.1.1",
     "tsx": "4.21.0",
     "vitest": "4.1.5"
-  },
-  "pnpm": {
-    "overrides": {
-      "fast-xml-parser": "5.7.2",
-      "postcss": "8.5.12"
-    }
   }
 }
