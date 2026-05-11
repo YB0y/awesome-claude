@@ -20,9 +20,11 @@ export type McpConfigValidation = {
 };
 
 const SENSITIVE_ENV_PATTERN =
-  /(api[_-]?key|auth|bearer|client[_-]?secret|credential|password|private[_-]?key|secret|token)/i;
+  /(api[_-]?key|auth|authorization|bearer|client[_-]?secret|credential|env|password|private[_-]?key|secret|token|x-api-key)/i;
 const PLACEHOLDER_PATTERN =
   /(\$\{[A-Z0-9_]+\}|YOUR_|REPLACE_|INSERT_|<[^>]+>|\bxxx+\b|\bTODO\b)/i;
+const SECRET_VALUE_PATTERN =
+  /\b(ghp_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{40,}|sk-[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|Bearer\s+[A-Za-z0-9._~+/=-]{16,})\b/;
 const SHELL_OPERATOR_PATTERN = /(?:&&|\|\||[;|`<>]|\$\()/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -41,9 +43,56 @@ function normalizeServerName(value: string) {
 
 function redactEnvValue(key: string, value: unknown) {
   const normalized = String(value ?? "");
-  if (!SENSITIVE_ENV_PATTERN.test(key)) return normalized;
+  if (
+    !SENSITIVE_ENV_PATTERN.test(key) &&
+    !SECRET_VALUE_PATTERN.test(normalized)
+  ) {
+    return normalized;
+  }
   if (!normalized || PLACEHOLDER_PATTERN.test(normalized)) return normalized;
-  return `\${${key.toUpperCase().replace(/[^A-Z0-9_]/g, "_")}}`;
+  const placeholderKey = key || "SECRET";
+  return `\${${placeholderKey.toUpperCase().replace(/[^A-Z0-9_]/g, "_")}}`;
+}
+
+type SanitizedValue = {
+  value: unknown;
+  redactedCount: number;
+};
+
+function sanitizeConfigValue(key: string, value: unknown): SanitizedValue {
+  if (Array.isArray(value)) {
+    let redactedCount = 0;
+    const sanitizedItems = value.map((item) => {
+      const sanitized = sanitizeConfigValue(key, item);
+      redactedCount += sanitized.redactedCount;
+      return sanitized.value;
+    });
+    return { value: sanitizedItems, redactedCount };
+  }
+
+  if (isRecord(value)) {
+    let redactedCount = 0;
+    const entries = Object.entries(value).map(([entryKey, entryValue]) => {
+      const sanitized = sanitizeConfigValue(entryKey, entryValue);
+      redactedCount += sanitized.redactedCount;
+      return [entryKey, sanitized.value];
+    });
+    return { value: Object.fromEntries(entries), redactedCount };
+  }
+
+  const normalized = String(value ?? "");
+  const redacted = redactEnvValue(key, normalized);
+  if (redacted !== normalized) {
+    return {
+      value: redacted,
+      redactedCount: 1,
+    };
+  }
+
+  return {
+    value,
+    redactedCount: 0,
+  };
 }
 
 function packageFromNpxArgs(args: string[]) {
@@ -135,21 +184,15 @@ function validateServer(name: string, raw: unknown) {
   const args = asStringArray(raw.args);
   const env = isRecord(raw.env) ? raw.env : {};
   const envKeys = Object.keys(env).sort();
-  const sanitizedEnv = Object.fromEntries(
-    Object.entries(env).map(([key, value]) => [
-      key,
-      redactEnvValue(key, value),
-    ]),
-  );
-  const redactedSecretCount = Object.entries(env).filter(
-    ([key, value]) => String(value ?? "") !== String(sanitizedEnv[key] ?? ""),
-  ).length;
+  const sanitizedRaw = sanitizeConfigValue("", raw);
+  const sanitizedRawValue = isRecord(sanitizedRaw.value)
+    ? sanitizedRaw.value
+    : {};
   const sanitized = {
-    ...raw,
+    ...sanitizedRawValue,
     ...(command ? { command } : {}),
-    ...(args.length ? { args } : {}),
-    ...(envKeys.length ? { env: sanitizedEnv } : {}),
   };
+  const redactedSecretCount = sanitizedRaw.redactedCount;
 
   if (!command && !url) {
     errors.push(
