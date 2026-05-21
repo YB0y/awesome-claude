@@ -1652,7 +1652,7 @@
       "usageSnippet": "🤖 claude-sonnet-4.5 │ 📁 ~/projects/app │  main │ 🎯 12,345 │ 💰 $0.234",
       "copySnippet": "{\n  \"statusLine\": {\n    \"type\": \"command\",\n    \"command\": \"$CLAUDE_PROJECT_DIR/.claude/statuslines/python-rich-statusline.py\",\n    \"refreshInterval\": 1000\n  }\n}",
       "configSnippet": "{\n  \"statusLine\": {\n    \"type\": \"command\",\n    \"command\": \"$CLAUDE_PROJECT_DIR/.claude/statuslines/python-rich-statusline.py\",\n    \"refreshInterval\": 1000\n  }\n}",
-      "scriptLanguage": "bash",
+      "scriptLanguage": "python",
       "prerequisites": [
         "Claude Code CLI installed and configured",
         "Python 3.7+ installed and available in PATH (python3 command)",
@@ -1660,6 +1660,14 @@
         "Terminal with UTF-8 encoding support (required for Unicode emojis: 🤖 📁 🎯 💰)",
         "Terminal with truecolor support (24-bit color, recommended for best Rich rendering - set COLORTERM=truecolor)",
         "Git command (optional, for Git branch display - statusline works without Git)"
+      ],
+      "safetyNotes": [
+        "Runs as a Claude Code statusline command on refresh and depends on the local Python/Rich environment being available.",
+        "Does not perform network calls or write files, but statusline failures may affect prompt/status rendering until dependencies are installed."
+      ],
+      "privacyNotes": [
+        "Reads Claude Code statusline JSON from stdin, including model, workspace path, token usage, estimated cost, and Git branch when present.",
+        "Displays workspace path, Git branch, token usage, and cost information in the local terminal statusline."
       ],
       "hasPrerequisites": false,
       "hasTroubleshooting": true,

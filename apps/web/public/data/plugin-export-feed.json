@@ -1,8 +1,8 @@
 {
   "schemaVersion": 2,
   "kind": "plugin-export-feed",
-  "generatedAt": "2026-05-10T00:00:00.000Z",
-  "count": 249,
+  "generatedAt": "2026-05-19T00:00:00.000Z",
+  "count": 250,
   "plugins": [
     {
       "name": "cursor-rules",
@@ -4327,6 +4327,18 @@
       "heyclaudeUrl": "https://heyclau.de/skills/rest-api-client-harness"
     },
     {
+      "name": "retro-daily",
+      "title": "Retro Daily - Hooks",
+      "description": "SessionStart hook that prints a daily Claude Code retro: competency grade, efficiency sparklines, contributions heatmap, and weak-metric scout findings.",
+      "category": "hooks",
+      "submittedBy": "gyanesh-m",
+      "submittedByUrl": "https://github.com/gyanesh-m",
+      "sourceUrl": "https://github.com/gyanesh-m/retro-daily",
+      "installCommand": "/plugin marketplace add gyanesh-m/retro-daily && /plugin install retro-daily@retro-daily",
+      "platformCompatibility": [],
+      "heyclaudeUrl": "https://heyclau.de/hooks/retro-daily"
+    },
+    {
       "name": "rust-cargo-check",
       "title": "Rust Cargo Check - Hooks",
       "description": "Automatically runs cargo check and clippy when Rust files are modified.",
@@ -4642,7 +4654,7 @@
       "title": "Svelte Component Compiler - Hooks",
       "description": "Automatically compiles and validates Svelte components when they are modified.",
       "category": "hooks",
-      "sourceUrl": "https://github.com/JSONbored/awesome-claude/blob/main/content/hooks/svelte-component-compiler.mdx",
+      "sourceUrl": "https://svelte.dev/docs",
       "installCommand": "mkdir -p .claude/hooks && touch .claude/hooks/svelte-component-compiler.sh && chmod +x .claude/hooks/svelte-component-compiler.sh",
       "platformCompatibility": [],
       "heyclaudeUrl": "https://heyclau.de/hooks/svelte-component-compiler"

@@ -1,8 +1,8 @@
 {
   "schemaVersion": 2,
   "kind": "directory-index",
-  "generatedAt": "2026-05-10T00:00:00.000Z",
-  "count": 385,
+  "generatedAt": "2026-05-19T00:00:00.000Z",
+  "count": 386,
   "entries": [
     {
       "category": "commands",
@@ -12609,6 +12609,14 @@
       "configSnippet": "{\n  \"hooks\": {\n    \"postToolUse\": {\n      \"script\": \"./.claude/hooks/documentation-generator.sh\",\n      \"matchers\": [\n        \"write\",\n        \"edit\"\n      ]\n    }\n  }\n}",
       "scriptLanguage": "bash",
       "trigger": "PostToolUse",
+      "safetyNotes": [
+        "Runs automatically after write/edit tool use and may invoke local documentation generators such as npx jsdoc, jsdoc2md, typedoc, pdoc, pydoc, go doc, or cargo doc.",
+        "Can write generated documentation under ./docs and may be slow on large source files or projects with expensive documentation tooling."
+      ],
+      "privacyNotes": [
+        "Reads modified source, README, Markdown, and package metadata files to count comments, links, functions, classes, and documentation sections.",
+        "Generated documentation may include source comments, API details, project names, and README content from the local workspace."
+      ],
       "hasPrerequisites": false,
       "hasTroubleshooting": true,
       "hasBreakingChanges": false,
@@ -27379,7 +27387,7 @@
       "usageSnippet": "🤖 claude-sonnet-4.5 │ 📁 ~/projects/app │  main │ 🎯 12,345 │ 💰 $0.234",
       "copySnippet": "{\n  \"statusLine\": {\n    \"type\": \"command\",\n    \"command\": \"$CLAUDE_PROJECT_DIR/.claude/statuslines/python-rich-statusline.py\",\n    \"refreshInterval\": 1000\n  }\n}",
       "configSnippet": "{\n  \"statusLine\": {\n    \"type\": \"command\",\n    \"command\": \"$CLAUDE_PROJECT_DIR/.claude/statuslines/python-rich-statusline.py\",\n    \"refreshInterval\": 1000\n  }\n}",
-      "scriptLanguage": "bash",
+      "scriptLanguage": "python",
       "prerequisites": [
         "Claude Code CLI installed and configured",
         "Python 3.7+ installed and available in PATH (python3 command)",
@@ -27387,6 +27395,14 @@
         "Terminal with UTF-8 encoding support (required for Unicode emojis: 🤖 📁 🎯 💰)",
         "Terminal with truecolor support (24-bit color, recommended for best Rich rendering - set COLORTERM=truecolor)",
         "Git command (optional, for Git branch display - statusline works without Git)"
+      ],
+      "safetyNotes": [
+        "Runs as a Claude Code statusline command on refresh and depends on the local Python/Rich environment being available.",
+        "Does not perform network calls or write files, but statusline failures may affect prompt/status rendering until dependencies are installed."
+      ],
+      "privacyNotes": [
+        "Reads Claude Code statusline JSON from stdin, including model, workspace path, token usage, estimated cost, and Git branch when present.",
+        "Displays workspace path, Git branch, token usage, and cost information in the local terminal statusline."
       ],
       "hasPrerequisites": false,
       "hasTroubleshooting": true,
@@ -28681,6 +28697,108 @@
           "adapter",
           "manual-context"
         ]
+      }
+    },
+    {
+      "category": "hooks",
+      "slug": "retro-daily",
+      "title": "Retro Daily - Hooks",
+      "description": "SessionStart hook that prints a daily Claude Code retro at the top of every session — competency grade (0–100, A–F), 14-day efficiency sparklines, and a year-long contributions heatmap.",
+      "seoTitle": "Retro Daily - SessionStart Hook for Claude Code",
+      "seoDescription": "Daily retro dashboard printed at the top of every Claude Code session.",
+      "author": "gyanesh-m",
+      "authorProfileUrl": "https://github.com/gyanesh-m",
+      "dateAdded": "2026-05-19",
+      "contentUpdatedAt": "2026-05-19",
+      "submittedBy": "gyanesh-m",
+      "submittedByUrl": "https://github.com/gyanesh-m",
+      "tags": [
+        "sessionstart",
+        "dashboard",
+        "metrics",
+        "retro",
+        "analytics"
+      ],
+      "keywords": [
+        "sessionstart",
+        "hook",
+        "dashboard",
+        "metrics",
+        "retro",
+        "sparkline",
+        "heatmap",
+        "competency",
+        "claude-code",
+        "analytics",
+        "hooks",
+        "claude"
+      ],
+      "readingTime": 2,
+      "difficultyScore": 1,
+      "websiteUrl": "https://gyanesh-m.github.io/retro-daily/",
+      "cardDescription": "SessionStart hook that prints a daily Claude Code retro: competency grade, efficiency sparklines, contributions heatmap, and weak-metric scout findings.",
+      "installable": true,
+      "installCommand": "/plugin marketplace add gyanesh-m/retro-daily && /plugin install retro-daily@retro-daily",
+      "usageSnippet": "/plugin marketplace add gyanesh-m/retro-daily\n/plugin install retro-daily@retro-daily\n/reload-plugins",
+      "copySnippet": "{\n  \"hooks\": {\n    \"SessionStart\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"~/.claude/metrics/startup.sh\"\n          }\n        ]\n      }\n    ]\n  }\n}",
+      "configSnippet": "{\n  \"hooks\": {\n    \"SessionStart\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"~/.claude/metrics/startup.sh\"\n          }\n        ]\n      }\n    ]\n  }\n}",
+      "scriptLanguage": "bash",
+      "trigger": "SessionStart",
+      "prerequisites": [
+        "Claude Code CLI installed and authenticated.",
+        "Python 3.9+ for metrics rendering.",
+        "Reads local Claude Code session logs from ~/.claude/projects.",
+        "Writes derived metrics, logs, scout results, and session tags under ~/.claude/metrics.",
+        "Starts sandboxed background claude -p workers unless RETRO_DAILY_NO_BACKGROUND_WORKERS=1 is set."
+      ],
+      "safetyNotes": [
+        "Runs automatically on Claude Code SessionStart and can spawn detached background claude -p workers.",
+        "Uses WebSearch and Write in the scout worker unless RETRO_DAILY_NO_BACKGROUND_WORKERS=1 is set.",
+        "Writes temporary scout and tagger output to /tmp before moving validated results into ~/.claude/metrics.",
+        "First full setup can install large Python model dependencies for local classification.",
+        "Scout findings may include web- or GitHub-derived text and should be treated as untrusted informational context, not executable instructions."
+      ],
+      "privacyNotes": [
+        "Reads local Claude Code session history from ~/.claude/projects/*.jsonl to compute metrics.",
+        "Writes derived metrics, logs, scout results, and session tags under ~/.claude/metrics.",
+        "Session tagger builds a truncated digest from recent local session messages for claude -p labeling.",
+        "Background scout may send weak-metric research queries to docs.anthropic.com and GitHub through WebSearch.",
+        "The SessionStart hook may provide the rendered retro/scout dashboard to Claude Code as hookSpecificOutput.additionalContext, which is model-visible context in addition to the user-visible dashboard."
+      ],
+      "hasPrerequisites": true,
+      "hasTroubleshooting": true,
+      "hasBreakingChanges": false,
+      "robotsIndex": true,
+      "robotsFollow": true,
+      "downloadUrl": "",
+      "downloadTrust": null,
+      "downloadSha256": null,
+      "filePath": "content/hooks/retro-daily.mdx",
+      "githubUrl": "https://github.com/JSONbored/awesome-claude/blob/main/content/hooks/retro-daily.mdx",
+      "repoUrl": "https://github.com/gyanesh-m/retro-daily",
+      "githubStars": null,
+      "githubForks": null,
+      "repoUpdatedAt": null,
+      "canonicalUrl": "https://heyclau.de/hooks/retro-daily",
+      "llmsUrl": "https://heyclau.de/data/llms/hooks/retro-daily.txt",
+      "apiUrl": "https://heyclau.de/api/registry/entries/hooks/retro-daily",
+      "trustSignals": {
+        "firstPartyEditorial": false,
+        "packageVerified": false,
+        "packageTrust": null,
+        "packageChecksum": "",
+        "checksumPresent": false,
+        "sourceUrlCount": 3,
+        "sourceUrls": [
+          "https://github.com/gyanesh-m/retro-daily",
+          "https://github.com/JSONbored/awesome-claude/blob/main/content/hooks/retro-daily.mdx",
+          "https://gyanesh-m.github.io/retro-daily/"
+        ],
+        "sourceStatus": "available",
+        "lastVerifiedAt": "2026-05-19",
+        "adapterGenerated": false,
+        "platforms": [],
+        "supportLevels": []
       }
     },
     {
@@ -31267,6 +31385,7 @@
       ],
       "readingTime": 4,
       "difficultyScore": 0,
+      "documentationUrl": "https://svelte.dev/docs",
       "cardDescription": "Automatically compiles and validates Svelte components when they are modified.",
       "installable": true,
       "installCommand": "mkdir -p .claude/hooks && touch .claude/hooks/svelte-component-compiler.sh && chmod +x .claude/hooks/svelte-component-compiler.sh",
@@ -31275,6 +31394,14 @@
       "configSnippet": "{\n  \"hooks\": {\n    \"postToolUse\": {\n      \"script\": \"./.claude/hooks/svelte-component-compiler.sh\",\n      \"matchers\": [\n        \"write\",\n        \"edit\"\n      ]\n    }\n  }\n}",
       "scriptLanguage": "bash",
       "trigger": "PostToolUse",
+      "safetyNotes": [
+        "Runs automatically after write/edit tool use for .svelte files and may invoke npx svelte-check inside the current project.",
+        "Uses the local project toolchain and dependencies, so validation can be slow or fail when Svelte dependencies are missing."
+      ],
+      "privacyNotes": [
+        "Reads modified .svelte components, package.json, svelte.config.js, and vite.config.js to infer framework, component, accessibility, and performance signals.",
+        "Prints component statistics and validation output to the local Claude Code hook output stream."
+      ],
       "hasPrerequisites": false,
       "hasTroubleshooting": true,
       "hasBreakingChanges": false,
@@ -31298,8 +31425,9 @@
         "packageTrust": null,
         "packageChecksum": "",
         "checksumPresent": false,
-        "sourceUrlCount": 1,
+        "sourceUrlCount": 2,
         "sourceUrls": [
+          "https://svelte.dev/docs",
           "https://github.com/JSONbored/awesome-claude/blob/main/content/hooks/svelte-component-compiler.mdx"
         ],
         "sourceStatus": "available",

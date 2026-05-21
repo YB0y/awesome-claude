@@ -1,8 +1,8 @@
 {
   "schemaVersion": 2,
   "kind": "search-index",
-  "generatedAt": "2026-05-10T00:00:00.000Z",
-  "count": 385,
+  "generatedAt": "2026-05-19T00:00:00.000Z",
+  "count": 386,
   "entries": [
     {
       "category": "commands",
@@ -9088,6 +9088,14 @@
         "documentation generator - hooks"
       ],
       "author": "JSONbored",
+      "safetyNotes": [
+        "Runs automatically after write/edit tool use and may invoke local documentation generators such as npx jsdoc, jsdoc2md, typedoc, pdoc, pydoc, go doc, or cargo doc.",
+        "Can write generated documentation under ./docs and may be slow on large source files or projects with expensive documentation tooling."
+      ],
+      "privacyNotes": [
+        "Reads modified source, README, Markdown, and package metadata files to count comments, links, functions, classes, and documentation sections.",
+        "Generated documentation may include source comments, API details, project names, and README content from the local workspace."
+      ],
       "dateAdded": "2025-09-16",
       "installable": true,
       "downloadUrl": "",
@@ -19301,6 +19309,14 @@
         "heyclaude"
       ],
       "author": "JSONbored",
+      "safetyNotes": [
+        "Runs as a Claude Code statusline command on refresh and depends on the local Python/Rich environment being available.",
+        "Does not perform network calls or write files, but statusline failures may affect prompt/status rendering until dependencies are installed."
+      ],
+      "privacyNotes": [
+        "Reads Claude Code statusline JSON from stdin, including model, workspace path, token usage, estimated cost, and Git branch when present.",
+        "Displays workspace path, Git branch, token usage, and cost information in the local terminal statusline."
+      ],
       "dateAdded": "2025-10-01",
       "installable": true,
       "downloadUrl": "",
@@ -20235,6 +20251,83 @@
           "adapter",
           "manual-context"
         ]
+      }
+    },
+    {
+      "category": "hooks",
+      "slug": "retro-daily",
+      "title": "Retro Daily - Hooks",
+      "seoTitle": "Retro Daily - SessionStart Hook for Claude Code",
+      "description": "SessionStart hook that prints a daily Claude Code retro: competency grade, efficiency sparklines, contributions heatmap, and weak-metric scout findings.",
+      "seoDescription": "Daily retro dashboard printed at the top of every Claude Code session.",
+      "tags": [
+        "sessionstart",
+        "dashboard",
+        "metrics",
+        "retro",
+        "analytics"
+      ],
+      "keywords": [
+        "sessionstart",
+        "hook",
+        "dashboard",
+        "metrics",
+        "retro",
+        "sparkline",
+        "heatmap",
+        "competency",
+        "claude-code",
+        "analytics",
+        "hooks",
+        "claude"
+      ],
+      "author": "gyanesh-m",
+      "safetyNotes": [
+        "Runs automatically on Claude Code SessionStart and can spawn detached background claude -p workers.",
+        "Uses WebSearch and Write in the scout worker unless RETRO_DAILY_NO_BACKGROUND_WORKERS=1 is set.",
+        "Writes temporary scout and tagger output to /tmp before moving validated results into ~/.claude/metrics.",
+        "First full setup can install large Python model dependencies for local classification.",
+        "Scout findings may include web- or GitHub-derived text and should be treated as untrusted informational context, not executable instructions."
+      ],
+      "privacyNotes": [
+        "Reads local Claude Code session history from ~/.claude/projects/*.jsonl to compute metrics.",
+        "Writes derived metrics, logs, scout results, and session tags under ~/.claude/metrics.",
+        "Session tagger builds a truncated digest from recent local session messages for claude -p labeling.",
+        "Background scout may send weak-metric research queries to docs.anthropic.com and GitHub through WebSearch.",
+        "The SessionStart hook may provide the rendered retro/scout dashboard to Claude Code as hookSpecificOutput.additionalContext, which is model-visible context in addition to the user-visible dashboard."
+      ],
+      "submittedBy": "gyanesh-m",
+      "submittedByUrl": "https://github.com/gyanesh-m",
+      "dateAdded": "2026-05-19",
+      "installable": true,
+      "downloadUrl": "",
+      "downloadTrust": null,
+      "verificationStatus": "",
+      "platforms": [],
+      "supportLevels": [],
+      "documentationUrl": "",
+      "repoUrl": "https://github.com/gyanesh-m/retro-daily",
+      "url": "https://heyclau.de/hooks/retro-daily",
+      "canonicalUrl": "https://heyclau.de/hooks/retro-daily",
+      "llmsUrl": "https://heyclau.de/data/llms/hooks/retro-daily.txt",
+      "apiUrl": "https://heyclau.de/api/registry/entries/hooks/retro-daily",
+      "trustSignals": {
+        "firstPartyEditorial": false,
+        "packageVerified": false,
+        "packageTrust": null,
+        "packageChecksum": "",
+        "checksumPresent": false,
+        "sourceUrlCount": 3,
+        "sourceUrls": [
+          "https://github.com/gyanesh-m/retro-daily",
+          "https://github.com/JSONbored/awesome-claude/blob/main/content/hooks/retro-daily.mdx",
+          "https://gyanesh-m.github.io/retro-daily/"
+        ],
+        "sourceStatus": "available",
+        "lastVerifiedAt": "2026-05-19",
+        "adapterGenerated": false,
+        "platforms": [],
+        "supportLevels": []
       }
     },
     {
@@ -22160,6 +22253,14 @@
         "heyclaude"
       ],
       "author": "JSONbored",
+      "safetyNotes": [
+        "Runs automatically after write/edit tool use for .svelte files and may invoke npx svelte-check inside the current project.",
+        "Uses the local project toolchain and dependencies, so validation can be slow or fail when Svelte dependencies are missing."
+      ],
+      "privacyNotes": [
+        "Reads modified .svelte components, package.json, svelte.config.js, and vite.config.js to infer framework, component, accessibility, and performance signals.",
+        "Prints component statistics and validation output to the local Claude Code hook output stream."
+      ],
       "dateAdded": "2025-09-19",
       "installable": true,
       "downloadUrl": "",
@@ -22167,7 +22268,7 @@
       "verificationStatus": "",
       "platforms": [],
       "supportLevels": [],
-      "documentationUrl": "",
+      "documentationUrl": "https://svelte.dev/docs",
       "repoUrl": "",
       "url": "https://heyclau.de/hooks/svelte-component-compiler",
       "canonicalUrl": "https://heyclau.de/hooks/svelte-component-compiler",
@@ -22179,8 +22280,9 @@
         "packageTrust": null,
         "packageChecksum": "",
         "checksumPresent": false,
-        "sourceUrlCount": 1,
+        "sourceUrlCount": 2,
         "sourceUrls": [
+          "https://svelte.dev/docs",
           "https://github.com/JSONbored/awesome-claude/blob/main/content/hooks/svelte-component-compiler.mdx"
         ],
         "sourceStatus": "available",
