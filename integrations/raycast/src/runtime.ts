@@ -6,17 +6,26 @@ import {
   fallbackDetail,
   feedCacheKey,
   feedMetadataCacheKey,
+  hasValidDiscoveryEntries,
   isRaycastDetail,
   parseFeed,
   parseFeedSnapshotMetadata,
+  parseRecentUpdatesFeed,
   parseRegistryManifestSnapshot,
   parseRegistrySearch,
+  parseTrendingFeed,
+  recentUpdatesCacheKey,
+  recentUpdatesFeedUrl,
   registryManifestUrl,
   registrySearchUrl,
   resolveFeedUrl,
+  trendingCacheKey,
+  trendingFeedUrl,
   type FeedSnapshotMetadata,
   type ParsedFeed,
   type ParsedRegistrySearch,
+  type ParsedRecentUpdatesFeed,
+  type ParsedTrendingFeed,
   type RaycastDetail,
   type RaycastEntry,
   type RegistryManifestSnapshot,
@@ -77,6 +86,40 @@ export function loadCachedFeed(
     cache.remove(cacheKey);
     cache.remove(feedMetadataCacheKey(feedUrl));
     return { entries: [], generatedAt: "" };
+  }
+}
+
+export function loadCachedTrending(
+  cache: RaycastTextCache,
+  feedUrl = FEED_URL,
+): ParsedTrendingFeed {
+  const cacheKey = trendingCacheKey(feedUrl);
+  const cached = cache.get(cacheKey);
+  if (!cached) {
+    return { entries: [], category: "all", platform: "all", generatedAt: "" };
+  }
+
+  try {
+    return parseTrendingFeed(cached);
+  } catch {
+    cache.remove(cacheKey);
+    return { entries: [], category: "all", platform: "all", generatedAt: "" };
+  }
+}
+
+export function loadCachedRecentUpdates(
+  cache: RaycastTextCache,
+  feedUrl = FEED_URL,
+): ParsedRecentUpdatesFeed {
+  const cacheKey = recentUpdatesCacheKey(feedUrl);
+  const cached = cache.get(cacheKey);
+  if (!cached) return { entries: [], generatedAt: "", currentSignature: "" };
+
+  try {
+    return parseRecentUpdatesFeed(cached);
+  } catch {
+    cache.remove(cacheKey);
+    return { entries: [], generatedAt: "", currentSignature: "" };
   }
 }
 
@@ -158,6 +201,88 @@ async function fetchFeedPayload(
     throw new Error(`Feed responded with ${response.status}`);
   }
   return response.text();
+}
+
+async function fetchDiscoveryPayload(
+  fetchFn: FetchLike,
+  url: string,
+  label: string,
+): Promise<string> {
+  const response = await fetchFn(url, {
+    headers: { accept: "application/json" },
+  });
+  if (!response.ok) {
+    throw new Error(`${label} responded with ${response.status}`);
+  }
+  const text = await response.text();
+  if (!hasValidDiscoveryEntries(text)) {
+    throw new Error(`${label} payload was malformed`);
+  }
+  return text;
+}
+
+export async function fetchFreshTrending(options: {
+  cache: RaycastTextCache;
+  fetchFn?: FetchLike;
+  feedUrl?: string;
+  limit?: number;
+}) {
+  const fetchFn = options.fetchFn ?? fetch;
+  const feedUrl = resolveFeedUrl(options.feedUrl);
+  const cacheKey = trendingCacheKey(feedUrl);
+  const cached = loadCachedTrending(options.cache, feedUrl);
+
+  try {
+    const text = await fetchDiscoveryPayload(
+      fetchFn,
+      trendingFeedUrl(feedUrl, options.limit),
+      "Trending feed",
+    );
+    const nextFeed = parseTrendingFeed(text);
+    options.cache.set(cacheKey, text);
+    return { ...nextFeed, refreshStatus: "updated" as const };
+  } catch (error) {
+    if (cached.entries.length > 0) {
+      return {
+        ...cached,
+        refreshStatus: "stale" as const,
+        refreshWarning: error instanceof Error ? error.message : String(error),
+      };
+    }
+    throw error;
+  }
+}
+
+export async function fetchFreshRecentUpdates(options: {
+  cache: RaycastTextCache;
+  fetchFn?: FetchLike;
+  feedUrl?: string;
+  limit?: number;
+}) {
+  const fetchFn = options.fetchFn ?? fetch;
+  const feedUrl = resolveFeedUrl(options.feedUrl);
+  const cacheKey = recentUpdatesCacheKey(feedUrl);
+  const cached = loadCachedRecentUpdates(options.cache, feedUrl);
+
+  try {
+    const text = await fetchDiscoveryPayload(
+      fetchFn,
+      recentUpdatesFeedUrl(feedUrl, options.limit),
+      "Recent updates feed",
+    );
+    const nextFeed = parseRecentUpdatesFeed(text);
+    options.cache.set(cacheKey, text);
+    return { ...nextFeed, refreshStatus: "updated" as const };
+  } catch (error) {
+    if (cached.entries.length > 0) {
+      return {
+        ...cached,
+        refreshStatus: "stale" as const,
+        refreshWarning: error instanceof Error ? error.message : String(error),
+      };
+    }
+    throw error;
+  }
 }
 
 export async function fetchFreshFeed(options: {
