@@ -43,6 +43,23 @@ import {
   repoRoot,
 } from "./helpers/registry-fixtures";
 
+const sharedTmpHookLogPathPattern =
+  /(^|[^A-Za-z0-9_$\/{.-])(\/tmp\/[A-Za-z0-9_.$\/{}-]*(?:debug|startup)[A-Za-z0-9_.$\/{}-]*)/gi;
+const nonPredictableTmpHookLogPathPattern =
+  /\$\$|\$RANDOM|\$\{RANDOM\}|X{3,}/i;
+
+function findPredictableSharedTmpHookLogPaths(scriptBody: string) {
+  const paths = new Set<string>();
+  for (const match of scriptBody.matchAll(sharedTmpHookLogPathPattern)) {
+    const tmpPath = match[2];
+    if (!tmpPath || nonPredictableTmpHookLogPathPattern.test(tmpPath)) {
+      continue;
+    }
+    paths.add(tmpPath);
+  }
+  return [...paths];
+}
+
 describe("registry artifacts", () => {
   const contentEntries = loadContentEntries();
   const directoryEntries = loadDirectoryEntries();
@@ -679,6 +696,7 @@ Use this hook after reviewing the notes.`,
     const scriptBody = detailPayload.entry.scriptBody;
 
     expect(scriptBody).not.toContain("/tmp/claude-startup.log");
+    expect(findPredictableSharedTmpHookLogPaths(scriptBody)).toEqual([]);
     expect(scriptBody).toContain(
       'DEBUG_LOG_DIR="${RETRO_DAILY_HOME:-$HOME/.claude/metrics}"',
     );

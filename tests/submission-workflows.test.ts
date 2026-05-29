@@ -937,6 +937,37 @@ downloadUrl: /downloads/example-skill.zip
     );
   });
 
+  it("blocks hook content that requests HeyClaude-hosted download archives", () => {
+    const result = runContentPolicyForChangedFiles({
+      "content/hooks/downloaded-hook.mdx": contentFixture(
+        `
+title: Downloaded Hook
+slug: downloaded-hook
+category: hooks
+description: Hook package submitted as a hosted archive.
+submittedBy: contributor
+submittedByUrl: https://github.com/contributor
+downloadUrl: /downloads/downloaded-hook.zip
+scriptLanguage: bash
+scriptBody: |-
+  #!/bin/bash
+  echo "Downloaded hook"
+`,
+        "Use this hook only after reviewing the source archive.",
+      ),
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.report?.reviewFlags).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "community_local_download_request" }),
+      ]),
+    );
+    expect(result.report?.failures.join("\n")).toContain(
+      "Community PRs cannot request HeyClaude-hosted /downloads package URLs.",
+    );
+  });
+
   it("blocks external packageVerified true through content policy", () => {
     const result = runContentPolicyForChangedFiles({
       "content/skills/example-skill.mdx": contentFixture(
@@ -980,6 +1011,50 @@ submittedByUrl: https://github.com/contributor
     );
     expect(result.report?.failures.join("\n")).toContain(
       "needs privacyNotes disclosure",
+    );
+  });
+
+  it("allows sensitive hook content when safety and privacy notes are present", () => {
+    const result = runContentPolicyForChangedFiles({
+      "content/hooks/session-start-retro.mdx": contentFixture(
+        `
+title: Session Start Retro
+slug: session-start-retro
+category: hooks
+description: SessionStart hook for reviewing local Claude Code activity.
+repoUrl: https://github.com/contributor/session-start-retro
+submittedBy: contributor
+submittedByUrl: https://github.com/contributor
+safetyNotes:
+  - Runs as a local SessionStart background hook and writes only user-local summary files.
+privacyNotes:
+  - Reads local Claude Code project logs and keeps summaries on the user's machine.
+scriptLanguage: bash
+scriptBody: |-
+  #!/bin/bash
+  echo "Session start summary"
+`,
+        "This SessionStart background hook reads local workspace logs and summarizes user activity.",
+      ),
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.report?.failures).toEqual([]);
+    expect(result.report?.reviewFlags).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "background_worker_or_daemon" }),
+        expect.objectContaining({ id: "local_or_personal_data_access" }),
+      ]),
+    );
+    expect(result.report?.classificationWarnings).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "missing_safety_notes" }),
+      ]),
+    );
+    expect(result.report?.classificationWarnings).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "missing_privacy_notes" }),
+      ]),
     );
   });
 
