@@ -78,28 +78,31 @@ function isHttpsUrl(value) {
   }
 }
 
+const TRACKING_QUERY_KEYS = new Set([
+  "aff",
+  "affiliate",
+  "affiliate_id",
+  "campaign",
+  "coupon",
+  "irclickid",
+  "partner",
+  "referral",
+  "referral_code",
+  "via",
+]);
+
+function isTrackingQueryKey(key) {
+  const normalized = key.trim().toLowerCase();
+  return normalized.startsWith("utm_") || TRACKING_QUERY_KEYS.has(normalized);
+}
+
 function isLikelyAffiliateUrl(value) {
   const trimmed = normalizeText(value);
   if (!trimmed) return false;
   try {
     const url = new URL(trimmed);
-    const affiliateParams = new Set([
-      "aff",
-      "affiliate",
-      "affiliate_id",
-      "campaign",
-      "coupon",
-      "irclickid",
-      "partner",
-      "referral",
-      "referral_code",
-      "via",
-    ]);
     for (const key of url.searchParams.keys()) {
-      const normalized = key.trim().toLowerCase();
-      if (normalized.startsWith("utm_") || affiliateParams.has(normalized)) {
-        return true;
-      }
+      if (isTrackingQueryKey(key)) return true;
     }
   } catch {
     return false;
@@ -752,10 +755,17 @@ export function reviewSubmissionDraftFromSpec(spec, args = {}, entries = []) {
     slug: validation.normalized.slug,
     title: validation.normalized.title || validation.normalized.name,
     name: validation.normalized.name,
-    sourceUrl:
-      validation.normalized.github_url ||
-      validation.normalized.docs_url ||
+    // Forward every candidate URL the submission carries rather than picking a
+    // single winner via `||` — see `collectSubmissionCandidateUrls`. A
+    // submission with both `github_url` and `docs_url` was previously dropping
+    // the second candidate from duplicate detection.
+    sourceUrls: [
+      validation.normalized.github_url,
+      validation.normalized.docs_url,
       validation.normalized.source_url,
+      validation.normalized.download_url,
+      validation.normalized.website_url,
+    ].filter(Boolean),
     brandDomain: validation.normalized.brand_domain,
     limit: args.duplicateLimit || 5,
   };
@@ -794,17 +804,104 @@ export function reviewSubmissionDraftFromSpec(spec, args = {}, entries = []) {
   };
 }
 
-function entrySourceUrls(entry) {
-  return [
+// Normalize a URL for duplicate-detection matching. Lowercases scheme + host,
+// strips `www.`, drops `#hash`, drops `utm_*` and known affiliate/tracking
+// query params (so links shared with marketing parameters still match the
+// canonical form), and strips a trailing `/` on non-root paths. Returns "" for
+// unparseable input — unparseable URLs simply don't match anything, which is
+// safe (the slug/title/brand_domain matches still run).
+function normalizeSubmissionUrlForMatch(value) {
+  const trimmed = normalizeText(value);
+  if (!trimmed) return "";
+  let url;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    return "";
+  }
+  url.protocol = url.protocol.toLowerCase();
+  url.hostname = url.hostname.toLowerCase().replace(/^www\./, "");
+  url.hash = "";
+  const droppedKeys = [];
+  for (const key of url.searchParams.keys()) {
+    if (isTrackingQueryKey(key)) droppedKeys.push(key);
+  }
+  for (const key of droppedKeys) url.searchParams.delete(key);
+  // Normalize the pathname before serializing so a trailing `/` is stripped on
+  // non-root paths regardless of any query string. Checking the serialized
+  // string's `endsWith("/")` misses cases like
+  // `https://example.com/foo/?ref=x`, where the slash sits before the query and
+  // is never the last character — leaving it would break the match against the
+  // canonical `https://example.com/foo?ref=x`.
+  if (url.pathname !== "/" && url.pathname.endsWith("/")) {
+    url.pathname = url.pathname.slice(0, -1);
+  }
+  return url.toString();
+}
+
+// Every external-publisher URL field the indexed entry may carry. Includes
+// `downloadUrl`, `websiteUrl`, `githubUrl`, and `trustSignals.sourceUrls` —
+// each is a real entry field today and a duplicate that lives only on one of
+// them must still match a submitter's URL. Internal `url`/`canonicalUrl`/
+// `llmsUrl`/`apiUrl` stay in the list because a submitter who pastes the
+// HeyClaude canonical URL of an existing entry is still describing the same
+// resource and should be flagged as a duplicate.
+function collectEntrySourceUrls(entry) {
+  const candidates = [
     entry.documentationUrl,
     entry.repoUrl,
+    entry.githubUrl,
+    entry.websiteUrl,
+    entry.downloadUrl,
     entry.url,
     entry.canonicalUrl,
     entry.llmsUrl,
     entry.apiUrl,
-  ]
-    .map(normalizeText)
-    .filter(Boolean);
+  ];
+  const trustSourceUrls = entry?.trustSignals?.sourceUrls;
+  if (Array.isArray(trustSourceUrls)) {
+    for (const value of trustSourceUrls) candidates.push(value);
+  }
+  const normalized = new Set();
+  for (const candidate of candidates) {
+    const value = normalizeSubmissionUrlForMatch(candidate);
+    if (value) normalized.add(value);
+  }
+  return normalized;
+}
+
+// Collect every URL the caller has offered as a duplicate-search candidate.
+// Accepts the legacy scalar `sourceUrl`, the new `sourceUrls` array, and the
+// fielded `githubUrl`/`docsUrl`/`downloadUrl`/`websiteUrl` keys so callers
+// don't have to `||`-chain a single winner and silently drop the rest.
+function collectSubmissionCandidateUrls(args = {}) {
+  const candidates = [
+    args.sourceUrl,
+    args.githubUrl,
+    args.docsUrl,
+    args.downloadUrl,
+    args.websiteUrl,
+  ];
+  if (Array.isArray(args.sourceUrls)) {
+    for (const value of args.sourceUrls) candidates.push(value);
+  }
+  const normalized = new Set();
+  for (const candidate of candidates) {
+    const value = normalizeSubmissionUrlForMatch(candidate);
+    if (value) normalized.add(value);
+  }
+  return normalized;
+}
+
+// First URL that appears in both Sets, or "" if none. Returning the matched
+// URL (rather than just a boolean) lets callers surface which URL hit if they
+// ever want to extend the `reasons` payload — today the predicate path is
+// boolean-only, but the value is free.
+function findOverlappingSourceUrl(entryUrls, candidateUrls) {
+  for (const value of candidateUrls) {
+    if (entryUrls.has(value)) return value;
+  }
+  return "";
 }
 
 export function searchDuplicateEntries(entries = [], args = {}) {
@@ -813,7 +910,7 @@ export function searchDuplicateEntries(entries = [], args = {}) {
   const slug = normalizeLower(args.slug);
   const title = normalizeLower(args.title || args.name);
   const brandDomain = normalizeDomain(args.brandDomain);
-  const sourceUrl = normalizeText(args.sourceUrl);
+  const candidateUrls = collectSubmissionCandidateUrls(args);
 
   const matches = [];
   for (const entry of entries) {
@@ -824,7 +921,10 @@ export function searchDuplicateEntries(entries = [], args = {}) {
     if (brandDomain && normalizeDomain(entry.brandDomain) === brandDomain) {
       reasons.push("brand_domain");
     }
-    if (sourceUrl && entrySourceUrls(entry).includes(sourceUrl)) {
+    if (
+      candidateUrls.size > 0 &&
+      findOverlappingSourceUrl(collectEntrySourceUrls(entry), candidateUrls)
+    ) {
       reasons.push("source_url");
     }
 
