@@ -839,11 +839,7 @@ export function sortedCategoryOptions(
 
 export function filterEntriesByCategory<
   T extends Pick<RaycastEntry, "category" | "slug">,
->(
-  entries: T[],
-  category: string,
-  favorites: Set<string>,
-) {
+>(entries: T[], category: string, favorites: Set<string>) {
   if (category === "favorites") {
     return entries.filter((entry) => favorites.has(entryKey(entry)));
   }

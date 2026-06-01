@@ -505,6 +505,16 @@ describe("Raycast feed helpers", () => {
       recentUpdatesFeedUrl(devFeed, 0),
       "https://preview.example.com/api/registry/diff?limit=1",
     );
+    const trendingNaNLimit = new URL(
+      trendingFeedUrl(devFeed, Number.NaN),
+    ).searchParams.get("limit");
+    const recentUpdatesNaNLimit = new URL(
+      recentUpdatesFeedUrl(devFeed, Number.NaN),
+    ).searchParams.get("limit");
+    assert.equal(trendingNaNLimit, "25");
+    assert.equal(recentUpdatesNaNLimit, "25");
+    assert.ok(Number.isFinite(Number(trendingNaNLimit)));
+    assert.ok(Number.isFinite(Number(recentUpdatesNaNLimit)));
     assert.equal(trendingCacheKey(), TRENDING_CACHE_KEY);
     assert.equal(recentUpdatesCacheKey(), RECENT_UPDATES_CACHE_KEY);
     assert.notEqual(trendingCacheKey(devFeed), TRENDING_CACHE_KEY);
