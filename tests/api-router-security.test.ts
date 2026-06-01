@@ -5,12 +5,6 @@ import path from "node:path";
 import { apiRouteDefinitions } from "../apps/web/src/lib/api/contracts";
 import { repoRoot } from "./helpers/registry-fixtures";
 
-const envMock = vi.hoisted(() => ({ value: {} as Record<string, unknown> }));
-
-vi.mock("@opennextjs/cloudflare", () => ({
-  getCloudflareContext: () => ({ env: envMock.value }),
-}));
-
 function submissionRequest(
   body: unknown,
   headers: Record<string, string> = {},
@@ -31,7 +25,6 @@ describe("central API router security", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.unstubAllGlobals();
-    envMock.value = {};
     delete process.env.BRANDFETCH_CLIENT_ID;
   });
 
@@ -267,7 +260,6 @@ describe("central API router security", () => {
   });
 
   it("rejects Brandfetch icons outside the trusted asset CDN", async () => {
-    envMock.value = { BRANDFETCH_CLIENT_ID: "test-client" };
     process.env.BRANDFETCH_CLIENT_ID = "test-client";
     const fetchMock = vi.fn(async () =>
       Response.json([
@@ -279,8 +271,7 @@ describe("central API router security", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const { GET } =
-      await import("@/app/api/brand-assets/[kind]/[domain]/route");
+    const { GET } = await import("@/routes/api/brand-assets/$kind/$domain");
     const response = await GET(
       new Request("https://heyclau.de/api/brand-assets/icon/example.com"),
       { params: { kind: "icon", domain: "example.com" } },
@@ -295,7 +286,6 @@ describe("central API router security", () => {
   });
 
   it("rejects Brandfetch icon redirects outside the trusted asset CDN", async () => {
-    envMock.value = { BRANDFETCH_CLIENT_ID: "test-client" };
     process.env.BRANDFETCH_CLIENT_ID = "test-client";
     const fetchMock = vi
       .fn()
@@ -317,8 +307,7 @@ describe("central API router security", () => {
       );
     vi.stubGlobal("fetch", fetchMock);
 
-    const { GET } =
-      await import("@/app/api/brand-assets/[kind]/[domain]/route");
+    const { GET } = await import("@/routes/api/brand-assets/$kind/$domain");
     const response = await GET(
       new Request("https://heyclau.de/api/brand-assets/icon/example.com"),
       { params: { kind: "icon", domain: "example.com" } },
@@ -333,7 +322,6 @@ describe("central API router security", () => {
   });
 
   it("rejects SVG Brandfetch icon responses from trusted hosts", async () => {
-    envMock.value = { BRANDFETCH_CLIENT_ID: "test-client" };
     process.env.BRANDFETCH_CLIENT_ID = "test-client";
     const fetchMock = vi
       .fn()
@@ -355,8 +343,7 @@ describe("central API router security", () => {
       );
     vi.stubGlobal("fetch", fetchMock);
 
-    const { GET } =
-      await import("@/app/api/brand-assets/[kind]/[domain]/route");
+    const { GET } = await import("@/routes/api/brand-assets/$kind/$domain");
     const response = await GET(
       new Request("https://heyclau.de/api/brand-assets/icon/example.com"),
       { params: { kind: "icon", domain: "example.com" } },
@@ -371,7 +358,6 @@ describe("central API router security", () => {
   });
 
   it("rejects oversized Brandfetch icon responses before buffering", async () => {
-    envMock.value = { BRANDFETCH_CLIENT_ID: "test-client" };
     process.env.BRANDFETCH_CLIENT_ID = "test-client";
     const fetchMock = vi
       .fn()
@@ -393,8 +379,7 @@ describe("central API router security", () => {
       );
     vi.stubGlobal("fetch", fetchMock);
 
-    const { GET } =
-      await import("@/app/api/brand-assets/[kind]/[domain]/route");
+    const { GET } = await import("@/routes/api/brand-assets/$kind/$domain");
     const response = await GET(
       new Request("https://heyclau.de/api/brand-assets/icon/example.com"),
       { params: { kind: "icon", domain: "example.com" } },
@@ -409,7 +394,7 @@ describe("central API router security", () => {
   });
 
   it("requires admin tokens for reviewed D1 jobs endpoints", async () => {
-    const { GET } = await import("@/app/api/admin/jobs/health/route");
+    const { GET } = await import("@/routes/api/admin/jobs/health");
     const response = await GET(
       new Request("https://heyclau.de/api/admin/jobs/health", {
         headers: { origin: "https://heyclau.de" },
@@ -421,6 +406,110 @@ describe("central API router security", () => {
       ok: false,
       error: { code: "unauthorized" },
     });
+  });
+
+  it("rejects jobs-only tokens on listing lead admin routes", async () => {
+    const previousAdmin = process.env.ADMIN_API_TOKEN;
+    const previousJobs = process.env.JOBS_ADMIN_API_TOKEN;
+    const previousLeads = process.env.LEADS_ADMIN_TOKEN;
+    const previousAdminLeads = process.env.ADMIN_LEADS_TOKEN;
+    delete process.env.ADMIN_API_TOKEN;
+    process.env.JOBS_ADMIN_API_TOKEN = "jobs-admin-token";
+    delete process.env.LEADS_ADMIN_TOKEN;
+    delete process.env.ADMIN_LEADS_TOKEN;
+
+    try {
+      const { GET } = await import("@/routes/api/admin/listing-leads");
+      const response = await GET(
+        new Request("https://heyclau.de/api/admin/listing-leads", {
+          headers: { authorization: "Bearer jobs-admin-token" },
+        }),
+      );
+
+      expect(response.status).toBe(401);
+      await expect(response.json()).resolves.toMatchObject({
+        ok: false,
+        error: { code: "unauthorized" },
+      });
+    } finally {
+      if (previousAdmin === undefined) delete process.env.ADMIN_API_TOKEN;
+      else process.env.ADMIN_API_TOKEN = previousAdmin;
+      if (previousJobs === undefined) delete process.env.JOBS_ADMIN_API_TOKEN;
+      else process.env.JOBS_ADMIN_API_TOKEN = previousJobs;
+      if (previousLeads === undefined) delete process.env.LEADS_ADMIN_TOKEN;
+      else process.env.LEADS_ADMIN_TOKEN = previousLeads;
+      if (previousAdminLeads === undefined)
+        delete process.env.ADMIN_LEADS_TOKEN;
+      else process.env.ADMIN_LEADS_TOKEN = previousAdminLeads;
+    }
+  });
+
+  it("scopes dedicated admin tokens to their intended admin routes", async () => {
+    const previousAdmin = process.env.ADMIN_API_TOKEN;
+    const previousJobs = process.env.JOBS_ADMIN_API_TOKEN;
+    const previousLeads = process.env.LEADS_ADMIN_TOKEN;
+    const previousAdminLeads = process.env.ADMIN_LEADS_TOKEN;
+    process.env.ADMIN_API_TOKEN = "primary-admin-token";
+    process.env.JOBS_ADMIN_API_TOKEN = "jobs-admin-token";
+    process.env.LEADS_ADMIN_TOKEN = "leads-admin-token";
+    delete process.env.ADMIN_LEADS_TOKEN;
+
+    try {
+      const { isJobsAdminAuthorized, isLeadsAdminAuthorized } =
+        await import("@/lib/admin-auth");
+      expect(
+        isJobsAdminAuthorized(
+          new Request("https://heyclau.de/api/admin/jobs", {
+            headers: { authorization: "Bearer jobs-admin-token" },
+          }),
+        ),
+      ).toBe(true);
+      expect(
+        isLeadsAdminAuthorized(
+          new Request("https://heyclau.de/api/admin/listing-leads", {
+            headers: { authorization: "Bearer jobs-admin-token" },
+          }),
+        ),
+      ).toBe(false);
+      expect(
+        isLeadsAdminAuthorized(
+          new Request("https://heyclau.de/api/admin/listing-leads", {
+            headers: { "x-admin-token": "leads-admin-token" },
+          }),
+        ),
+      ).toBe(true);
+      expect(
+        isJobsAdminAuthorized(
+          new Request("https://heyclau.de/api/admin/jobs", {
+            headers: { "x-admin-token": "leads-admin-token" },
+          }),
+        ),
+      ).toBe(false);
+      expect(
+        isLeadsAdminAuthorized(
+          new Request("https://heyclau.de/api/admin/listing-leads", {
+            headers: { "x-admin-token": "primary-admin-token" },
+          }),
+        ),
+      ).toBe(true);
+      expect(
+        isJobsAdminAuthorized(
+          new Request("https://heyclau.de/api/admin/jobs", {
+            headers: { "x-admin-token": "primary-admin-token" },
+          }),
+        ),
+      ).toBe(true);
+    } finally {
+      if (previousAdmin === undefined) delete process.env.ADMIN_API_TOKEN;
+      else process.env.ADMIN_API_TOKEN = previousAdmin;
+      if (previousJobs === undefined) delete process.env.JOBS_ADMIN_API_TOKEN;
+      else process.env.JOBS_ADMIN_API_TOKEN = previousJobs;
+      if (previousLeads === undefined) delete process.env.LEADS_ADMIN_TOKEN;
+      else process.env.LEADS_ADMIN_TOKEN = previousLeads;
+      if (previousAdminLeads === undefined)
+        delete process.env.ADMIN_LEADS_TOKEN;
+      else process.env.ADMIN_LEADS_TOKEN = previousAdminLeads;
+    }
   });
 
   it("rejects invalid admin lead status filters and neutralizes CSV formulas", async () => {

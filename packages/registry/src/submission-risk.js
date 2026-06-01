@@ -1,5 +1,3 @@
-import matter from "gray-matter";
-
 import {
   looksLikeToolAppListing,
   missingToolListingReviewFields,
@@ -12,6 +10,7 @@ import {
   SUBMISSION_RISK_LOW_LABEL,
   SUBMISSION_RISK_MEDIUM_LABEL,
 } from "./submission-labels.js";
+import matter from "gray-matter";
 
 export const SUBMISSION_RISK_SCHEMA_VERSION = 1;
 export const SUBMISSION_RISK_COMMENT_MARKER = "<!-- submission-risk-report -->";
@@ -31,6 +30,17 @@ const RISK_LABEL_BY_TIER = {
   medium: SUBMISSION_RISK_MEDIUM_LABEL,
   high: SUBMISSION_RISK_HIGH_LABEL,
   critical: SUBMISSION_RISK_HIGH_LABEL,
+};
+
+const UNSAFE_FRONTMATTER_LANGUAGE_ERROR =
+  "Executable JavaScript frontmatter is not allowed in submission risk analysis";
+
+const SAFE_MATTER_OPTIONS = {
+  engines: {
+    javascript() {
+      throw new Error(UNSAFE_FRONTMATTER_LANGUAGE_ERROR);
+    },
+  },
 };
 
 const SAFETY_NOTE_REQUIRED_FLAGS = new Set([
@@ -223,6 +233,17 @@ function stringList(value) {
         .split(/\n+/)
         .map((item) => item.trim())
         .filter(Boolean);
+}
+
+function parseContentFrontmatter(value) {
+  const content = String(value ?? "").replace(/^\uFEFF/, "");
+  try {
+    const parsed = matter(content, SAFE_MATTER_OPTIONS);
+    return { data: parsed.data || {}, content: parsed.content || "" };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(message);
+  }
 }
 
 const MAX_URL_SCAN_LENGTH = 200_000;
@@ -1228,11 +1249,21 @@ export function directContentRequestChangesReasons(report = {}) {
       "Install instructions include a destructive or remote-code execution pipeline.",
     embedded_secret:
       "Submission appears to include a real secret or API token.",
+    malicious_data_theft_capability:
+      "Submission appears to advertise credential, token, session, or wallet theft.",
     prohibited_content:
       "Submission appears to include clearly unacceptable content.",
   };
   for (const [id, reason] of Object.entries(flagReasons)) {
     if (flags.has(id)) reasons.push(`${reason} (${id}).`);
+  }
+
+  for (const flag of report.reviewFlags || []) {
+    if (flag.severity === "critical" && !flagReasons[flag.id]) {
+      reasons.push(
+        `Critical content policy finding must be resolved (${flag.id}).`,
+      );
+    }
   }
 
   const warningReasons = {
@@ -1877,7 +1908,7 @@ export function analyzeDirectContentRisk(input = {}) {
 
     let parsed;
     try {
-      parsed = matter(content);
+      parsed = parseContentFrontmatter(content);
     } catch (error) {
       addFlag(
         report,
