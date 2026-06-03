@@ -35,7 +35,10 @@ import {
   isAllowedBrandAssetUrl,
   truncateText,
 } from "@heyclaude/registry";
-import { buildContentEntryFromMdx } from "@heyclaude/registry/content-builder";
+import {
+  buildContentEntryFromMdx,
+  parseGitHubRepo,
+} from "@heyclaude/registry/content-builder";
 
 import {
   dataRoot,
@@ -1404,5 +1407,29 @@ describe("source health report", () => {
       report.summary.dormantCount +
       report.summary.unknownFreshnessCount;
     expect(freshnessTotal).toBe(report.count);
+  });
+});
+
+describe("parseGitHubRepo", () => {
+  it("parses github.com repo URLs, including the www. alias", () => {
+    expect(parseGitHubRepo("https://github.com/OpenAI/whisper.git")).toEqual({
+      owner: "OpenAI",
+      repo: "whisper",
+      key: "OpenAI/whisper",
+      url: "https://github.com/OpenAI/whisper",
+    });
+    // The www. alias resolves to the same repo as the bare host.
+    expect(parseGitHubRepo("https://www.github.com/OpenAI/whisper")).toEqual({
+      owner: "OpenAI",
+      repo: "whisper",
+      key: "OpenAI/whisper",
+      url: "https://github.com/OpenAI/whisper",
+    });
+  });
+
+  it("rejects non-github hosts, other subdomains, and empty input", () => {
+    expect(parseGitHubRepo("https://example.com/OpenAI/whisper")).toBeNull();
+    expect(parseGitHubRepo("https://gist.github.com/OpenAI/whisper")).toBeNull();
+    expect(parseGitHubRepo("")).toBeNull();
   });
 });

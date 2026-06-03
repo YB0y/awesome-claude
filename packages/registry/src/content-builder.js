@@ -25,7 +25,12 @@ export function parseGitHubRepo(repoUrl) {
 
   try {
     const url = new URL(repoUrl);
-    if (url.hostname !== "github.com") return null;
+    // Accept github.com and its www. alias (both appear in author-provided
+    // repo URLs); stripping only a leading "www." keeps other subdomains
+    // (gist., api., raw.) rejected.
+    if (url.hostname.toLowerCase().replace(/^www\./, "") !== "github.com") {
+      return null;
+    }
 
     const parts = url.pathname.split("/").filter(Boolean);
     if (parts.length < 2) return null;
