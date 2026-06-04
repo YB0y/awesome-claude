@@ -48,7 +48,7 @@ export interface Provenance {
   submittedBy?: string;
   submittedByUrl?: string;
   submittedAt?: string;
-  submissionIssueUrl?: string;
+  sourceSubmissionUrl?: string;
   importPrUrl?: string;
   reviewedBy?: string;
   reviewedAt?: string;
@@ -86,6 +86,25 @@ export interface RepoStats {
   updatedAt?: string;
   appliesTo?: "listing_source_repo" | "upstream_reference" | "directory_repo" | "none";
   label?: string;
+}
+
+export type EntryRelationType =
+  | "same-project"
+  | "collection-member"
+  | "works-with"
+  | "extends"
+  | "alternative"
+  | "related";
+
+export interface EntryRelation {
+  key: string;
+  category: Category;
+  slug: string;
+  title: string;
+  relation: EntryRelationType;
+  score: number;
+  reasons: string[];
+  url: string;
 }
 
 export interface EntrySection {
@@ -134,6 +153,7 @@ export interface Entry extends Provenance, BrandInfo, SkillFields {
   trust: TrustLevel;
   source: SourceStatus;
   repoStats?: RepoStats;
+  relatedEntries?: EntryRelation[];
   /** @deprecated Repo stars are source metadata, not listing popularity. */
   stars?: number;
   dateAdded: string;
