@@ -1064,6 +1064,9 @@ function toolboxTrustSummary(entries) {
 
 export async function planWorkflowToolbox(args = {}, options = {}) {
   const goal = String(args.goal || "").trim();
+  if (goal.length < 2) {
+    return invalid("Planner goal must be at least 2 characters.");
+  }
   const query = normalizeText(goal);
   const category = normalizeText(args.category);
   const platform = normalizePlatform(args.platform);

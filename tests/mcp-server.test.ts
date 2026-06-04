@@ -898,6 +898,38 @@ describe("HeyClaude read-only MCP helpers", () => {
     expect(matched.searchScore).toBeGreaterThan(0);
   });
 
+  it("rejects blank planner goals when called directly", async () => {
+    const readJsonArtifact = async () => {
+      throw new Error("Expected direct planner validation before artifact read.");
+    };
+
+    await expect(
+      planWorkflowToolbox({ goal: "   " }, { readJsonArtifact }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: {
+        code: "invalid_request",
+        message: "Planner goal must be at least 2 characters.",
+      },
+    });
+  });
+
+  it("rejects 1-character planner goals when called directly", async () => {
+    const readJsonArtifact = async () => {
+      throw new Error("Expected direct planner validation before artifact read.");
+    };
+
+    await expect(
+      planWorkflowToolbox({ goal: "x" }, { readJsonArtifact }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: {
+        code: "invalid_request",
+        message: "Planner goal must be at least 2 characters.",
+      },
+    });
+  });
+
   it("clamps the planner runtime limit to 10 even when called directly", async () => {
     // Direct runtime calls bypass the 1-10 input schema, so the tool must
     // clamp internally. Categories are spread so diversity selection still
