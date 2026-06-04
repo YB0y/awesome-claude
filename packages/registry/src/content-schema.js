@@ -42,14 +42,17 @@ export function headingId(text) {
     .toLowerCase()) {
     const isAlphaNumeric =
       (char >= "a" && char <= "z") || (char >= "0" && char <= "9");
-    const isWhitespace =
+    // Treat hyphens like any other separator so runs of adjacent separators
+    // (e.g. "Setup - Installation") collapse to a single dash below instead of
+    // emitting "setup---installation".
+    const isSeparator =
       char === " " ||
       char === "\n" ||
       char === "\t" ||
       char === "\r" ||
       char === "-";
-    if (isAlphaNumeric || char === "-") cleaned += char;
-    if (isWhitespace && char !== "-") cleaned += " ";
+    if (isAlphaNumeric) cleaned += char;
+    else if (isSeparator) cleaned += " ";
   }
 
   let output = "";
