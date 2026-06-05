@@ -11,6 +11,7 @@ import {
   buildGitHubAppAuthorizeUrl,
   createGitHubAppJwt,
   getCommitValidationState,
+  getRepositoryFileContent,
   listPullRequestFiles,
   upsertMarkerComment,
 } from "../apps/submission-gate/src/github";
@@ -2118,6 +2119,59 @@ disclosure: affiliate
       "repoUrl",
       "submittedBy",
     ]);
+  });
+
+  it("decodes base64 GitHub file content as UTF-8 so non-ASCII protected fields stay stable", async () => {
+    // GitHub's contents API returns base64 of the raw UTF-8 file bytes. Decoding
+    // it as Latin-1 (bare atob) mangles non-ASCII frontmatter, which then differs
+    // from the candidate file read as UTF-8 and falsely trips a protected-field
+    // change that one-shot-closes the edit PR.
+    const baseContent = [
+      "---",
+      "title: Existing Tool",
+      "slug: existing-tool",
+      "category: tools",
+      "author: José Núñez",
+      "submittedBy: jose",
+      'repoUrl: "https://github.com/example/existing-tool"',
+      "---",
+      "",
+      "Original description.",
+      "",
+    ].join("\n");
+    const base64 = Buffer.from(baseContent, "utf8").toString("base64");
+
+    const fetchMock = vi.fn(async (url: string | URL | Request) => {
+      expect(String(url)).toContain(
+        "/repos/JSONbored/awesome-claude/contents/content/tools/existing-tool.mdx",
+      );
+      return Response.json({
+        type: "file",
+        encoding: "base64",
+        content: base64,
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const decoded = await getRepositoryFileContent({
+      token: "ghs_test",
+      repo: { owner: "JSONbored", repo: "awesome-claude" },
+      path: "content/tools/existing-tool.mdx",
+      ref: "main",
+    });
+
+    // UTF-8 decode, not Latin-1: the accented author name round-trips intact.
+    expect(decoded).toContain("author: José Núñez");
+    expect(decoded).not.toContain("JosÃ©");
+
+    // The candidate is the same file read as UTF-8 with only a non-protected
+    // body edit. With correct decoding the untouched author field compares
+    // equal, so no protected-field change is reported.
+    const candidate = baseContent.replace(
+      "Original description.",
+      "Updated description.",
+    );
+    expect(protectedFrontmatterChanges(decoded, candidate)).toEqual([]);
   });
 
   it("detects duplicate collisions introduced by otherwise safe content edits", () => {
