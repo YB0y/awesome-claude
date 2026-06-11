@@ -308,6 +308,7 @@ describe("HeyClaude read-only MCP helpers", () => {
     );
     expect(packageJson.exports).toHaveProperty("./server");
     expect(packageJson.exports).toHaveProperty("./remote-proxy");
+    expect(packageJson.exports).toHaveProperty("./search-ranking");
     expect(packageJson.exports).toHaveProperty("./submissions");
   });
 
@@ -672,6 +673,81 @@ describe("HeyClaude read-only MCP helpers", () => {
       searchScore: expect.any(Number),
       searchReasons: expect.any(Array),
     });
+  });
+
+  it("uses shared ranked search semantics for MCP search", async () => {
+    const entries = [
+      {
+        category: "mcp",
+        slug: "loose-cursor-helper",
+        title: "Launcher Helper",
+        description: "Mentions Cursor in a broad setup paragraph.",
+        platforms: ["Claude"],
+        tags: [],
+        keywords: [],
+        dateAdded: "2026-05-24",
+        trustSignals: { sourceStatus: "available" },
+      },
+      {
+        category: "mcp",
+        slug: "cursor-platform-helper",
+        title: "Rules Helper",
+        description: "Strict platform-scoped setup.",
+        platforms: ["Cursor"],
+        tags: [],
+        keywords: [],
+        dateAdded: "2026-05-24",
+        trustSignals: { sourceStatus: "available" },
+      },
+      {
+        category: "mcp",
+        slug: "older-shared-helper",
+        title: "Shared Search Helper",
+        description: "Ranking helper fixture.",
+        platforms: ["Claude"],
+        tags: ["ranking"],
+        keywords: ["search"],
+        dateAdded: "2026-05-20",
+        trustSignals: { sourceStatus: "available" },
+      },
+      {
+        category: "mcp",
+        slug: "newer-shared-helper",
+        title: "Shared Search Helper",
+        description: "Ranking helper fixture.",
+        platforms: ["Claude"],
+        tags: ["ranking"],
+        keywords: ["search"],
+        dateAdded: "2026-05-26",
+        trustSignals: { sourceStatus: "available" },
+      },
+    ];
+    const readJsonArtifact = async (relativePath: string) => {
+      expect(relativePath).toBe("search-index.json");
+      return { entries };
+    };
+
+    const platform = await callRegistryTool(
+      "search_registry",
+      { query: "cursor", limit: 3 },
+      { readJsonArtifact },
+    );
+    expect(platform.entries.map((entry: any) => entry.slug)).toEqual([
+      "cursor-platform-helper",
+      "loose-cursor-helper",
+    ]);
+    expect(platform.entries[0].searchReasons).toContain("platform match");
+
+    const partial = await callRegistryTool(
+      "search_registry",
+      { query: "share", limit: 3 },
+      { readJsonArtifact },
+    );
+    expect(partial.entries.map((entry: any) => entry.slug)).toEqual([
+      "newer-shared-helper",
+      "older-shared-helper",
+    ]);
+    expect(partial.entries[0].searchReasons).toContain("title term");
   });
 
   it("plans a ranked read-only workflow toolbox", async () => {

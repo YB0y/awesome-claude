@@ -57,6 +57,10 @@
       "types": "./src/schemas.d.ts",
       "default": "./src/schemas.js"
     },
+    "./search-ranking": {
+      "types": "./src/search-ranking.d.ts",
+      "default": "./src/search-ranking.js"
+    },
     "./submissions": {
       "types": "./src/submissions.d.ts",
       "default": "./src/submissions.js"

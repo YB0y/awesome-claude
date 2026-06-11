@@ -46,6 +46,19 @@ function makeEntry(slug: string): SearchDocument {
   } as SearchDocument;
 }
 
+async function runSearch(query: string) {
+  const { GET } = await import("../apps/web/src/routes/api/registry/search");
+  const response = await GET(
+    new Request(
+      `https://heyclau.de/api/registry/search?q=${encodeURIComponent(query)}`,
+      { headers: { origin: "https://heyclau.de" } },
+    ),
+  );
+
+  expect(response.status).toBe(200);
+  return response.json();
+}
+
 describe("/api/registry/search", () => {
   beforeEach(() => {
     vi.resetModules();
@@ -180,6 +193,55 @@ describe("/api/registry/search", () => {
       total: 1,
       results: [expect.objectContaining({ slug: "github-server" })],
     });
+  });
+
+  it("scores partial, platform, and deterministic tie-breaker matches", async () => {
+    searchIndexMock.entries = [
+      {
+        ...makeEntry("loose-cursor-helper"),
+        title: "Launcher Helper",
+        description: "Mentions Cursor in a broad setup paragraph.",
+        platforms: ["claude-code"],
+      },
+      {
+        ...makeEntry("cursor-platform-helper"),
+        title: "Rules Helper",
+        description: "Strict platform-scoped setup.",
+        platforms: ["Cursor"],
+      },
+      {
+        ...makeEntry("older-shared-helper"),
+        title: "Shared Search Helper",
+        description: "Ranking helper fixture.",
+        dateAdded: "2026-05-20",
+      },
+      {
+        ...makeEntry("newer-shared-helper"),
+        title: "Shared Search Helper",
+        description: "Ranking helper fixture.",
+        dateAdded: "2026-05-26",
+      },
+    ];
+
+    const platform = await runSearch("cursor");
+    expect(platform.results.map((entry: SearchDocument) => entry.slug)).toEqual([
+      "cursor-platform-helper",
+      "loose-cursor-helper",
+    ]);
+    expect(platform.results[0].searchReasons).toContain("platform match");
+
+    const partial = await runSearch("share");
+    expect(partial.results.map((entry: SearchDocument) => entry.slug)).toEqual([
+      "newer-shared-helper",
+      "older-shared-helper",
+    ]);
+    expect(partial.results[0].searchReasons).toContain("title term");
+
+    const tied = await runSearch("shared search helper");
+    expect(tied.results.map((entry: SearchDocument) => entry.slug)).toEqual([
+      "newer-shared-helper",
+      "older-shared-helper",
+    ]);
   });
 
   it("does not advertise an offset beyond the documented maximum", async () => {

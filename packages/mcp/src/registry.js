@@ -28,6 +28,12 @@ import {
   searchDuplicateEntries,
   validateSubmissionDraftFromSpec,
 } from "./submissions.js";
+import {
+  entrySearchText,
+  matchesSearchQuery,
+  rankSearchEntries,
+  tokenizeSearchQuery,
+} from "./search-ranking.js";
 
 export * from "./schemas.js";
 
@@ -363,144 +369,6 @@ function normalizePlatform(value) {
   const normalized = normalizeText(value).replace(/[^a-z0-9]+/g, "-");
   if (!normalized) return "";
   return platformAliases.get(normalized) || String(value || "").trim();
-}
-
-function entryMatchesQuery(entry, query) {
-  if (!query) return true;
-  const haystack = [
-    entry.title,
-    entry.description,
-    entry.cardDescription,
-    entry.category,
-    entry.slug,
-    entry.author,
-    entry.submittedBy,
-    entry.brandName,
-    entry.brandDomain,
-    ...notes(entry.safetyNotes),
-    ...notes(entry.privacyNotes),
-    ...(entry.tags || []),
-    ...(entry.keywords || []),
-  ]
-    .map(normalizeText)
-    .join(" ");
-  return haystack.includes(query);
-}
-
-function searchTokens(query) {
-  return normalizeText(query)
-    .split(/[^a-z0-9+#.-]+/i)
-    .map((token) => token.trim())
-    .filter((token) => token.length >= 2)
-    .slice(0, 12);
-}
-
-function entrySearchText(entry) {
-  return [
-    entry.title,
-    entry.description,
-    entry.cardDescription,
-    entry.category,
-    entry.slug,
-    entry.author,
-    entry.submittedBy,
-    entry.brandName,
-    entry.brandDomain,
-    ...notes(entry.safetyNotes),
-    ...notes(entry.privacyNotes),
-    ...(entry.tags || []),
-    ...(entry.keywords || []),
-  ]
-    .map(normalizeText)
-    .join(" ")
-    .toLowerCase();
-}
-
-function scoreSearchEntry(entry, query) {
-  const normalizedQuery = normalizeText(query);
-  const tokens = searchTokens(normalizedQuery);
-  if (!tokens.length) return { score: 0, reasons: [] };
-
-  const title = normalizeText(entry.title);
-  const category = normalizeText(entry.category);
-  const tags = new Set((entry.tags || []).map(normalizeText));
-  const keywords = new Set((entry.keywords || []).map(normalizeText));
-  const haystack = entrySearchText(entry);
-  const reasons = new Set();
-  let score = 0;
-
-  if (title.includes(normalizedQuery)) {
-    score += 90;
-    reasons.add("title phrase");
-  }
-  if (category === normalizedQuery) {
-    score += 45;
-    reasons.add("category match");
-  }
-
-  for (const token of tokens) {
-    if (title.includes(token)) {
-      score += 35;
-      reasons.add("title term");
-    }
-    if (tags.has(token)) {
-      score += 24;
-      reasons.add("tag match");
-    }
-    if (keywords.has(token)) {
-      score += 18;
-      reasons.add("keyword match");
-    }
-    if (category.includes(token)) {
-      score += 12;
-      reasons.add("category term");
-    }
-    if (haystack.includes(token)) score += 4;
-  }
-
-  if (entrySourceStatus(entry) === "available") {
-    score += 8;
-    reasons.add("source-backed");
-  }
-  if (
-    entryPackageTrust(entry) === "first-party" ||
-    entry.packageVerified ||
-    entry.trustSignals?.packageVerified
-  ) {
-    score += 8;
-    reasons.add("trusted package");
-  }
-  if (notes(entry.safetyNotes).length) {
-    score += 4;
-    reasons.add("safety notes");
-  }
-  if (notes(entry.privacyNotes).length) {
-    score += 4;
-    reasons.add("privacy notes");
-  }
-  if (entry.claimStatus === "verified" || entry.reviewedBy) {
-    score += 4;
-    reasons.add("reviewed");
-  }
-
-  return { score, reasons: [...reasons].slice(0, 6) };
-}
-
-function rankSearchEntries(entries, query) {
-  return entries
-    .map((entry, index) => ({
-      entry,
-      index,
-      ...scoreSearchEntry(entry, query),
-    }))
-    .sort((left, right) => {
-      if (left.score !== right.score) return right.score - left.score;
-      const dateCompare = String(right.entry.dateAdded || "").localeCompare(
-        String(left.entry.dateAdded || ""),
-      );
-      if (dateCompare !== 0) return dateCompare;
-      return left.index - right.index;
-    });
 }
 
 function entryMatchesPlatform(entry, platform) {
@@ -909,7 +777,7 @@ export async function searchRegistry(args = {}, options = {}) {
   const matched = searchIndex
     .filter((entry) => !category || entry.category === category)
     .filter((entry) => entryMatchesPlatform(entry, platform))
-    .filter((entry) => entryMatchesQuery(entry, query))
+    .filter((entry) => matchesSearchQuery(entry, query))
     .filter((entry) => entryMatchesTrustFilters(entry, trustFilters));
   const entries = rankSearchEntries(matched, query)
     .slice(0, limit)
@@ -1079,8 +947,8 @@ export async function planWorkflowToolbox(args = {}, options = {}) {
   const scoped = searchIndex
     .filter((entry) => !category || entry.category === category)
     .filter((entry) => entryMatchesPlatform(entry, platform));
-  let matched = scoped.filter((entry) => entryMatchesQuery(entry, query));
-  const queryTokens = searchTokens(query);
+  let matched = scoped.filter((entry) => matchesSearchQuery(entry, query));
+  const queryTokens = tokenizeSearchQuery(query);
   if (!matched.length && queryTokens.length) {
     matched = scoped.filter((entry) =>
       queryTokens.some((token) => entrySearchText(entry).includes(token)),
@@ -1168,7 +1036,7 @@ export async function listCategoryEntries(args = {}, options = {}) {
     .filter((entry) => !category || entry.category === category)
     .filter((entry) => entryMatchesPlatform(entry, platform))
     .filter((entry) => entryMatchesTag(entry, tag))
-    .filter((entry) => entryMatchesQuery(entry, query));
+    .filter((entry) => matchesSearchQuery(entry, query));
   const page = entries.slice(offset, offset + limit).map(toEntrySummary);
 
   return {
