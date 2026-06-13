@@ -602,10 +602,7 @@ describe("Raycast feed helpers", () => {
       resolveFeedUrl(""),
       "https://heyclau.de/data/raycast-index.json",
     );
-    assert.equal(
-      localFeed,
-      "http://127.0.0.1:4173/data/raycast-index.json",
-    );
+    assert.equal(localFeed, "http://127.0.0.1:4173/data/raycast-index.json");
     assert.equal(
       resolveConfiguredFeedUrl(
         { feedUrlOverride: devFeed },
@@ -828,6 +825,33 @@ describe("Raycast feed helpers", () => {
         }),
       /not available/,
     );
+    const remoteHttpConfig = {
+      type: "http",
+      url: "http://mcp.example.com/mcp",
+    };
+    assert.equal(
+      mcpConfigSupportsTarget(remoteHttpConfig, "claude-code"),
+      false,
+    );
+    assert.deepEqual(mcpInstallTargetsForConfig(remoteHttpConfig), []);
+    assert.deepEqual(
+      mcpInstallTargetsForConfig({
+        type: "http",
+        url: "http://127.0.0.1:3000/mcp",
+      }),
+      ["claude-code", "codex", "cursor", "antigravity"],
+    );
+    assert.throws(
+      () =>
+        buildMcpInstallPlan("claude-code", sampleEntry, {
+          detailMarkdown: "# Remote HTTP",
+          configSnippet: JSON.stringify({
+            mcpServers: { remote: remoteHttpConfig },
+          }),
+        }),
+      /not available/,
+    );
+
     const sseConfig = { type: "sse", url: "https://example.com/sse" };
     assert.equal(mcpConfigSupportsTarget(sseConfig, "codex"), false);
     assert.deepEqual(mcpInstallTargetsForConfig(sseConfig), [
@@ -1711,6 +1735,42 @@ describe("Raycast feed helpers", () => {
         fetchFn: async () => response({}, { status: 503 }),
       }),
       /Registry search responded with 503/,
+    );
+  });
+
+  it("accepts generated JSON feeds with trailing newlines", async () => {
+    const cache = new MemoryCache();
+    const devFeed = "https://preview.example.com/data/raycast-index.json";
+    const feedPayload = JSON.stringify({
+      generatedAt: "2026-04-28T00:00:00.000Z",
+      entries: [sampleEntry],
+    });
+
+    const feed = await fetchFreshFeed({
+      cache,
+      feedUrl: devFeed,
+      fetchFn: async (input) => {
+        if (String(input).endsWith("/data/registry-manifest.json")) {
+          return response({
+            generatedAt: "2026-04-28T00:00:00.000Z",
+            artifactContracts: {
+              "raycast-index.json": {
+                path: "/data/raycast-index.json",
+                type: "json",
+                sha256: sha256Hex(feedPayload),
+              },
+            },
+          });
+        }
+        return response(`${feedPayload}\n`);
+      },
+    });
+
+    assert.equal(feed.refreshStatus, "updated");
+    assert.equal(feed.signature, sha256Hex(feedPayload));
+    assert.equal(
+      JSON.parse(cache.get(feedMetadataCacheKey(devFeed)) || "{}").signature,
+      sha256Hex(feedPayload),
     );
   });
 
