@@ -21,7 +21,9 @@
     "mode": "smart",
   },
   "triggers": {
-    "crons": ["17 */6 * * *"],
+    // 6-hourly: source-repo signals. Sundays 16:00 UTC: weekly newsletter digest.
+    // NB: Cloudflare day-of-week is 1=Sunday..7=Saturday, so Sunday is SUN (not 0).
+    "crons": ["17 */6 * * *", "0 16 * * SUN"],
   },
   "assets": {
     "directory": "dist/client",

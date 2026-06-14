@@ -295,7 +295,7 @@ function Dossier() {
       />
 
       {/* Header */}
-      <header className="mt-6 grid gap-6 border-b border-border pb-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <header className="mt-6 grid grid-cols-[minmax(0,1fr)] gap-6 border-b border-border pb-8 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <CategoryPill>{entry.category}</CategoryPill>
@@ -374,7 +374,7 @@ function Dossier() {
         </div>
 
         {/* Sticky install panel */}
-        <aside className="lg:sticky lg:top-20 lg:self-start">
+        <aside className="min-w-0 lg:sticky lg:top-20 lg:self-start">
           <div className="overflow-hidden rounded-xl border border-border bg-surface">
             <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
               <div className="eyebrow">Install</div>
@@ -500,7 +500,7 @@ function Dossier() {
       <div id="dossier-header-sentinel" aria-hidden className="h-px w-full" />
 
       {/* Body */}
-      <div className="grid gap-8 py-8 lg:grid-cols-[minmax(0,1fr)_280px]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-8 py-8 lg:grid-cols-[minmax(0,1fr)_280px]">
         <div className="min-w-0 space-y-8">
           {risk !== "low" && (
             <section
@@ -859,7 +859,7 @@ function SchemaDetails({ entry }: { entry: Entry }) {
             <PillList label="Retrieval sources" values={entry.retrievalSources} />
             <PillList label="Tested platforms" values={entry.testedPlatforms} />
             {entry.platformCompatibility?.length ? (
-              <div className="mt-3 overflow-hidden rounded-lg border border-border">
+              <div className="mt-3 overflow-x-auto rounded-lg border border-border">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-surface-2 text-ink-subtle">
                     <tr>
