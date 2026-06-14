@@ -53,10 +53,20 @@ import {
 import { repoRoot } from "./helpers/registry-fixtures";
 
 function readWorkerSource() {
-  return fs.readFileSync(
-    path.join(repoRoot, "apps/submission-gate/src/index.ts"),
-    "utf8",
-  );
+  // The orchestrator was split: pure decision/retry helpers now live in
+  // decisions.ts and are re-imported into index.ts. Concatenate both files so
+  // source-pinned assertions keep matching regardless of which file a symbol
+  // (function, constant, or call site) now lives in.
+  return [
+    fs.readFileSync(
+      path.join(repoRoot, "apps/submission-gate/src/index.ts"),
+      "utf8",
+    ),
+    fs.readFileSync(
+      path.join(repoRoot, "apps/submission-gate/src/decisions.ts"),
+      "utf8",
+    ),
+  ].join("\n");
 }
 
 function readReviewSource() {
@@ -480,7 +490,9 @@ describe("Cloudflare submission gate helpers", () => {
     expect(source).toContain("privateStrictDuplicateContradicted(");
     expect(source).toContain("duplicateEvidenceConflictExhaustedDecision(");
     expect(source).toContain("duplicateEvidenceContractExhaustedDecision(");
-    expect(readReviewSource()).toContain("duplicate_evidence_contract_exhausted");
+    expect(readReviewSource()).toContain(
+      "duplicate_evidence_contract_exhausted",
+    );
     expect(source).not.toContain("duplicateEvidenceConflictMergeDecision(");
     expect(source).toContain("privateEvidenceClaimsDeadSourceUrl(");
     expect(source).toContain("privateEvidenceMatchesReachableSourceUrl(");
@@ -846,14 +858,12 @@ documentationUrl: "https://example.com/docs"
 packageUrl: "https://hub.docker.com/r/example/project"
 ---
 `,
-      vi
-        .fn<typeof fetch>()
-        .mockImplementation(async (url) => {
-          const hostname = new URL(String(url)).hostname;
-          return new Response(null, {
-            status: hostname === "hub.docker.com" ? 429 : 200,
-          });
-        }),
+      vi.fn<typeof fetch>().mockImplementation(async (url) => {
+        const hostname = new URL(String(url)).hostname;
+        return new Response(null, {
+          status: hostname === "hub.docker.com" ? 429 : 200,
+        });
+      }),
     );
 
     expect(report.status).toBe("passed");
@@ -2755,6 +2765,52 @@ repoUrl: "https://github.com/langchain-ai/langchain.git"
           reasons: expect.arrayContaining([
             expect.stringContaining(
               "same canonical source URL https://github.com/langchain-ai/langchain across skills/mcp",
+            ),
+          ]),
+        }),
+      ]),
+    );
+  });
+
+  it("treats same canonical website across different categories as a strict duplicate", () => {
+    const existingTool = extractContentDuplicateSignals({
+      filePath: "content/tools/acme-claude.mdx",
+      content: `---
+title: Acme Claude
+slug: acme-claude
+category: tools
+description: Tooling for Acme Claude workflows.
+websiteUrl: "https://acme-claude.example/product"
+---
+`,
+    });
+    const candidateMcp = extractContentDuplicateSignals({
+      filePath: "content/mcp/acme-claude-server.mdx",
+      content: `---
+title: Acme Claude MCP Server
+slug: acme-claude-server
+category: mcp
+description: MCP server for Acme Claude workflows.
+websiteUrl: "https://acme-claude.example/product?utm_source=submission"
+---
+`,
+    });
+
+    expect(
+      findStrictContentDuplicateMatch(candidateMcp, [existingTool]),
+    ).toMatchObject({
+      reasons: expect.arrayContaining([
+        expect.stringContaining(
+          "same canonical source URL https://acme-claude.example/product across mcp/tools",
+        ),
+      ]),
+    });
+    expect(findRelatedContentMatches(candidateMcp, [existingTool])).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          reasons: expect.arrayContaining([
+            expect.stringContaining(
+              "same canonical source URL https://acme-claude.example/product across mcp/tools",
             ),
           ]),
         }),

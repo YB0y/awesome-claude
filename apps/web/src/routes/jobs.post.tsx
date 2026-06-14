@@ -1,7 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
+import { absoluteUrl } from "@/lib/seo";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { JobTier } from "@/types/registry";
 
 export const Route = createFileRoute("/jobs/post")({
@@ -12,7 +14,10 @@ export const Route = createFileRoute("/jobs/post")({
         name: "description",
         content: "Reach developers shipping Claude Code, MCP, and agent workflows.",
       },
+      { property: "og:url", content: absoluteUrl("/jobs/post") },
     ],
+    // ?tier=* variants are duplicates of the same page — consolidate onto the clean URL.
+    links: [{ rel: "canonical", href: absoluteUrl("/jobs/post") }],
   }),
   component: PostJobPage,
 });
@@ -195,7 +200,11 @@ function PostJobPage() {
             {submitting ? "Submitting…" : "Submit for review"}
           </button>
         </div>
-        {error && <p className="text-sm text-trust-blocked">{error}</p>}
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
       </form>
     </div>
   );

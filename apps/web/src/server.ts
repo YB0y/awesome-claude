@@ -3,7 +3,7 @@ import "./lib/error-capture";
 import { runWithCloudflareRuntime } from "./lib/cloudflare-env.server";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
-import { applySecurityHeaders } from "./lib/security-headers";
+import { applyEdgeCacheHeaders, applySecurityHeaders } from "./lib/security-headers";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -22,8 +22,9 @@ async function getServerEntry(): Promise<ServerEntry> {
 
 // h3 swallows in-handler throws into a normal 500 Response with body
 // {"unhandled":true,"message":"HTTPError"} — try/catch alone never fires for those.
-function withSecurityHeaders(response: Response): Response {
-  const headers = applySecurityHeaders(new Headers(response.headers));
+function withSecurityHeaders(response: Response, request: Request): Response {
+  const headers = applySecurityHeaders(new Headers(response.headers), request);
+  applyEdgeCacheHeaders(headers, response.status, request.method);
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
@@ -54,7 +55,7 @@ export default {
       try {
         const handler = await getServerEntry();
         const response = await handler.fetch(request, env, ctx);
-        return withSecurityHeaders(await normalizeCatastrophicSsrResponse(response));
+        return withSecurityHeaders(await normalizeCatastrophicSsrResponse(response), request);
       } catch (error) {
         console.error(error);
         return withSecurityHeaders(
@@ -62,6 +63,7 @@ export default {
             status: 500,
             headers: { "content-type": "text/html; charset=utf-8" },
           }),
+          request,
         );
       }
     });

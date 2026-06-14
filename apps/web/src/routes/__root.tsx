@@ -21,7 +21,24 @@ import { Toaster } from "@/components/ui/sonner";
 import { ShortcutsProvider } from "@/components/shortcuts-dialog";
 import { SkipLink } from "@/components/skip-link";
 import { RouteProgress } from "@/components/route-progress";
+import { WebMcpProvider } from "@/components/webmcp-provider";
+import { WebVitals } from "@/components/web-vitals";
 import { siteConfig } from "@/lib/site";
+import { absoluteUrl } from "@/lib/seo";
+import { stringifyJsonLd } from "@/lib/json-ld";
+import { buildOrganizationJsonLd, buildWebsiteJsonLd } from "@heyclaude/registry/seo";
+
+const twitterHandle = (() => {
+  try {
+    const handle = new URL(siteConfig.twitterUrl).pathname.split("/").filter(Boolean)[0];
+    return handle ? `@${handle.replace(/^@/, "")}` : undefined;
+  } catch {
+    return undefined;
+  }
+})();
+
+// Sitewide default OG/Twitter card. Routes that render a page-specific card override og:image.
+const defaultOgImage = absoluteUrl("/og-image.png");
 
 function NotFoundComponent() {
   return (
@@ -106,7 +123,20 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           "Search, compare, and inspect trust on Claude Code MCP servers, skills, hooks, commands, agents, and tools.",
       },
       { property: "og:type", content: "website" },
+      { property: "og:site_name", content: siteConfig.name },
+      { property: "og:locale", content: "en_US" },
+      { property: "og:image", content: defaultOgImage },
+      { property: "og:image:type", content: "image/png" },
+      { property: "og:image:width", content: "1200" },
+      { property: "og:image:height", content: "630" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:image", content: defaultOgImage },
+      ...(twitterHandle
+        ? [
+            { name: "twitter:site", content: twitterHandle },
+            { name: "twitter:creator", content: twitterHandle },
+          ]
+        : []),
     ],
     links: [
       { rel: "stylesheet", href: appCss },
@@ -115,11 +145,47 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
       { rel: "alternate", type: "application/rss+xml", href: "/feed.xml", title: "HeyClaude" },
       { rel: "alternate", type: "application/atom+xml", href: "/atom.xml", title: "HeyClaude" },
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+      // Self-hosted fonts (public/fonts.css mirrors Google's exact woff2 + unicode-ranges),
+      // so no third-party request. Preload the most-used latin display + body faces.
+      { rel: "stylesheet", href: "/fonts.css" },
       {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap",
+        rel: "preload",
+        href: "/fonts/space-grotesk-700-latin.woff2",
+        as: "font",
+        type: "font/woff2",
+        crossOrigin: "anonymous",
+      },
+      {
+        rel: "preload",
+        href: "/fonts/dm-sans-400-latin.woff2",
+        as: "font",
+        type: "font/woff2",
+        crossOrigin: "anonymous",
+      },
+    ],
+    scripts: [
+      {
+        type: "application/ld+json",
+        children: stringifyJsonLd(
+          buildOrganizationJsonLd({
+            siteUrl: siteConfig.url,
+            name: siteConfig.name,
+            githubUrl: siteConfig.githubUrl,
+            twitterUrl: siteConfig.twitterUrl,
+            discordUrl: siteConfig.discordUrl,
+            logo: `${siteConfig.url}/apple-touch-icon.png`,
+          }),
+        ),
+      },
+      {
+        type: "application/ld+json",
+        children: stringifyJsonLd(
+          buildWebsiteJsonLd({
+            siteUrl: siteConfig.url,
+            name: siteConfig.name,
+            description: siteConfig.description,
+          }),
+        ),
       },
     ],
   }),
@@ -170,6 +236,8 @@ function RootComponent() {
                 <ComparisonTray />
                 <CompareDrawer />
                 <BackToTop />
+                <WebMcpProvider />
+                <WebVitals />
                 <Toaster
                   position="bottom-right"
                   mobileOffset={{ bottom: "16px" }}

@@ -7,10 +7,11 @@
  *
  * Both are deterministic for a given registry snapshot so ETags are stable.
  */
-import { ENTRIES } from "@/data/entries";
+import { ENTRIES, REGISTRY_ENTRIES } from "@/data/entries";
 import { CATEGORIES } from "@/types/registry";
 import { etagFor } from "@/lib/feeds";
 import { applySecurityHeaders } from "@/lib/security-headers";
+import { buildEntryCitationFacts } from "@heyclaude/registry";
 
 export function buildLlmsTxt(origin: string): string {
   const lines: string[] = [];
@@ -34,10 +35,30 @@ export function buildLlmsTxt(origin: string): string {
     }
     lines.push("");
   }
+
+  // Optional section (llmstxt.org): supplementary machine-readable surfaces agents can pull.
+  lines.push("## Optional");
+  lines.push("");
+  lines.push(
+    `- [Full corpus](${origin}/llms-full.txt): every entry with descriptions, metadata, and install/config snippets`,
+  );
+  lines.push(`- [OpenAPI spec](${origin}/openapi.json): machine-readable REST API`);
+  lines.push(`- [API feed](${origin}/api/registry/feed): endpoint map and distribution feeds`);
+  lines.push(
+    `- [Directory index](${origin}/data/directory-index.json): flat per-entry JSON with tags and keywords`,
+  );
+  lines.push(
+    `- [MCP server card](${origin}/.well-known/mcp/server-card.json): MCP tools and resources`,
+  );
+  lines.push(`- [Agent skills index](${origin}/.well-known/agent-skills/index.json)`);
+  lines.push("");
   return lines.join("\n");
 }
 
 export function buildLlmsFullTxt(origin: string): string {
+  const rawEntriesByKey = new Map(
+    REGISTRY_ENTRIES.map((entry) => [`${entry.category}/${entry.slug}`, entry] as const),
+  );
   const out: string[] = [];
   out.push("# HeyClaude registry — full export");
   out.push("");
@@ -62,6 +83,17 @@ export function buildLlmsFullTxt(origin: string): string {
       out.push("");
       out.push(e.description);
       out.push("");
+      const citationEntry = rawEntriesByKey.get(`${e.category}/${e.slug}`);
+      const facts = citationEntry
+        ? buildEntryCitationFacts(citationEntry as Parameters<typeof buildEntryCitationFacts>[0], {
+            siteUrl: origin,
+          })
+        : "";
+      if (facts) {
+        out.push("Citation facts:");
+        out.push(facts);
+        out.push("");
+      }
       if (e.safetyNotes) {
         out.push(`Safety: ${e.safetyNotes}`);
         out.push("");
